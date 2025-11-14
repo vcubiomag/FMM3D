@@ -1,0 +1,50 @@
+name: Build and Upload Conda Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  attestations: write
+
+jobs:
+  build-and-upload:
+    name: Build (${{ matrix.target-platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target-platform: linux-64
+          - os: windows-latest
+            target-platform: win-64
+          - os: macos-latest
+            target-platform: osx-arm64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build conda packages
+        uses: prefix-dev/rattler-build-action@v0.2.34
+        with:
+          build-args: --target-platform ${{ matrix.target-platform }}
+
+      - name: Attest to packages
+        uses: actions/attest@v1
+        id: attest
+        with:
+          subject-path: "output/**/*.conda"
+          predicate-type: "https://schemas.conda.org/attestations-publish-1.schema.json"
+          predicate: '{"targetChannel": "https://prefix.dev/vcubiomag"}'
+
+      - name: Upload packages to prefix.dev
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          rattler-build upload prefix \
+            -c vcubiomag \
+            ./output/**/*.conda \
+            --attestation ${{ steps.attest.outputs.bundle-path }}
+        shell: bash

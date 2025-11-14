@@ -1,0 +1,38 @@
+context:
+  name: fmm3dpy
+  version: 1.0.0
+
+package:
+  name: ${{ name|lower }}
+  version: ${{ version }}
+
+source:
+  git_url: ../
+
+build:
+  number: 0
+  script:
+    - ${{ PYTHON }} -m pip install python/. --no-deps -vv
+
+requirements:
+  host:
+    - python
+    - pip
+    - meson-python
+    - numpy >=2.0.0
+    - ${{ compiler('c') }}
+    - ${{ compiler('cxx') }}
+    - ${{ compiler('fortran') }}
+
+  run:
+    - python
+    - numpy >=1.26.4
+
+tests:
+  - python:
+      imports:
+        - fmm3dpy
+  - script:
+      - pytest --pyargs fmm3dpy
+    requirements:
+      - pytest >=8.0.0
