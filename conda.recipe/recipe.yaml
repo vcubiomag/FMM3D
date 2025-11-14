@@ -22,6 +22,7 @@ requirements:
     - meson-python
     - numpy >=2.0.0
     - ${{ compiler('c') }}
+    - ${{ compiler('cxx') }}
     - ${{ compiler('fortran') }}
   run:
     - python>=3.9
