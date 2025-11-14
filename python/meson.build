@@ -10,7 +10,6 @@ np_dep = dependency('numpy', required: true)
 
 incdir_numpy = run_command(py, ['-c', 'import os; os.chdir(".."); import numpy; print(numpy.get_include())'], check : true).stdout().strip()
 inc_np = include_directories(incdir_numpy)
-
 incdir_f2py = incdir_numpy / '..' / '..' / 'f2py' / 'src'
 inc_f2py = include_directories(incdir_f2py)
 
@@ -117,74 +116,35 @@ fmm3d_lib = static_library('fmm3d',
 
 f2py_prog = find_program('f2py', 'f2py3', required: true)
 
-hfmm_genpyf = custom_target(
-  'hfmm_genpyf',
-  output: ['hfmm3d_fortranmodule.c', 'hfmm3d_fortran-f2pywrappers.f'],
-  input: hfmm_src,
-  command: [f2py_prog, '-m', 'hfmm3d_fortran', '@INPUT@', '--lower']
-)
+modules_to_build = {
+  'hfmm': hfmm_src,
+  'lfmm': lfmm_src,
+  'emfmm': emfmm_src,
+  'stfmm': stfmm_src
+}
 
-lfmm_genpyf = custom_target(
-  'lfmm_genpyf',
-  output: ['lfmm3d_fortranmodule.c', 'lfmm3d_fortran-f2pywrappers.f'],
-  input: lfmm_src,
-  command: [f2py_prog, '-m', 'lfmm3d_fortran', '@INPUT@', '--lower']
-)
+foreach name, sources : modules_to_build
+  mod_name = name + '3d_fortran'
 
-emfmm_genpyf = custom_target(
-  'emfmm_genpyf',
-  output: ['emfmm3d_fortranmodule.c', 'emfmm3d_fortran-f2pywrappers.f'],
-  input: emfmm_src,
-  command: [f2py_prog, '-m', 'emfmm3d_fortran', '@INPUT@', '--lower']
-)
+  # Generate C and Fortran wrappers with f2py
+  gen_pyf = custom_target(
+    name + '_genpyf',
+    output: [mod_name + 'module.c', mod_name + '-f2pywrappers.f'],
+    input: sources,
+    command: [f2py_prog, '-m', mod_name, '@INPUT@', '--lower']
+  )
 
-stfmm_genpyf = custom_target(
-  'stfmm_genpyf',
-  output: ['stfmm3d_fortranmodule.c', 'stfmm3d_fortran-f2pywrappers.f'],
-  input: stfmm_src,
-  command: [f2py_prog, '-m', 'stfmm3d_fortran', '@INPUT@', '--lower']
-)
-
-
-py.extension_module(
-  'hfmm3d_fortran',
-  hfmm_genpyf,
-  link_with: [fmm3d_lib],
-  dependencies: [np_dep, fortranobject_dep],
-  link_language: 'fortran',
-  install: true,
-  subdir: 'fmm3dpy'
-)
-
-py.extension_module(
-  'lfmm3d_fortran',
-  lfmm_genpyf,
-  link_with: [fmm3d_lib],
-  dependencies: [np_dep, fortranobject_dep],
-  link_language: 'fortran',
-  install: true,
-  subdir: 'fmm3dpy'
-)
-
-py.extension_module(
-  'emfmm3d_fortran',
-  emfmm_genpyf,
-  link_with: [fmm3d_lib],
-  dependencies: [np_dep, fortranobject_dep],
-  link_language: 'fortran',
-  install: true,
-  subdir: 'fmm3dpy'
-)
-
-py.extension_module(
-  'stfmm3d_fortran',
-  stfmm_genpyf,
-  link_with: [fmm3d_lib],
-  dependencies: [np_dep, fortranobject_dep],
-  link_language: 'fortran',
-  install: true,
-  subdir: 'fmm3dpy'
-)
+  # Compile the Python extension module
+  py.extension_module(
+    mod_name,
+    gen_pyf,
+    link_with: [fmm3d_lib],
+    dependencies: [np_dep, fortranobject_dep],
+    link_language: 'fortran',
+    install: true,
+    subdir: 'fmm3dpy'
+  )
+endforeach
 
 py.install_sources([
   'fmm3dpy/__init__.py',
