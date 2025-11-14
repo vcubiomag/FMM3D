@@ -31,7 +31,8 @@ jobs:
         uses: prefix-dev/rattler-build-action@v0.2.34
         with:
           build-args: --target-platform ${{ matrix.target-platform }}
-        
+          artifact-name: package-${{ matrix.target-platform }}
+
       - name: Upload all packages
         shell: bash
         run: |
