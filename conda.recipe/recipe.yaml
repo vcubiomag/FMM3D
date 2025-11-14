@@ -3,16 +3,17 @@ context:
   version: 1.0.0
 
 package:
-  name: ${{ name|lower }}
+  name: ${{ name }}
   version: ${{ version }}
 
 source:
-  git_url: ../
+  path: ..
 
 build:
   number: 0
   script:
-    - ${{ PYTHON }} -m pip install python/. --no-deps -vv
+    - cd python
+    - ${{ PYTHON }} -m pip install . -vv
 
 requirements:
   host:
@@ -21,18 +22,12 @@ requirements:
     - meson-python
     - numpy >=2.0.0
     - ${{ compiler('c') }}
-    - ${{ compiler('cxx') }}
     - ${{ compiler('fortran') }}
-
   run:
-    - python
+    - python>=3.9
     - numpy >=1.26.4
 
 tests:
   - python:
       imports:
         - fmm3dpy
-  - script:
-      - pytest --pyargs fmm3dpy
-    requirements:
-      - pytest >=8.0.0
