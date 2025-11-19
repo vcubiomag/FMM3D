@@ -14,7 +14,7 @@ requires = [
 
 [project]
 name = "fmm3dpy"
-version = "1.0.0"
+version = "1.0.3"
 description = "This package contains basic routines for Laplace, Helmholtz, Stokes and Maxwell fast multipole methods in three dimensions"
 python_requires = ">=3.9.0"
 license = { text = "Apache Software License" }
