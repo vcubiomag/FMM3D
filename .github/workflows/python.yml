@@ -1,6 +1,7 @@
 name: Python
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -12,29 +13,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-15, macos-15-intel]
         python-version: ['3.10', '3.14']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: gcc
+
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install gfortran (macOS)
-        if: runner.os == 'macOS'
-        run: brew install gcc
-
-      - name: Install gfortran (Windows)
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          install: mingw-w64-x86_64-gcc-fortran
-
       - name: Build and install
-        working-directory: python
         run: pip install ".[test]"
 
       - name: Run tests
@@ -46,30 +39,52 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            gcc_version: latest
+          - os: macos-15
+            arch: arm64
+            macos_deployment_target: '11.0'
+          - os: macos-15-intel
+            arch: x86_64
+            macos_deployment_target: '10.15'
+          - os: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install gfortran (Windows)
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
+      - uses: fortran-lang/setup-fortran@v1
+        if: runner.os == 'Linux' || runner.os == 'Windows'
         with:
-          msystem: MINGW64
-          install: mingw-w64-x86_64-gcc-fortran
+          compiler: gcc
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2
-        with:
-          package-dir: python
+        uses: pypa/cibuildwheel@v3.4.0
         env:
           CIBW_BUILD: 'cp310-* cp311-* cp312-* cp313-* cp314-*'
           CIBW_SKIP: '*-musllinux* *i686 *-win32'
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
-          CIBW_BEFORE_BUILD_LINUX: dnf install -y gcc-gfortran
-          CIBW_BEFORE_BUILD_MACOS: brew install gcc
-          CIBW_ENVIRONMENT_WINDOWS: >
-            PATH="C:\\msys64\\mingw64\\bin;$PATH"
+          CIBW_BEFORE_ALL_LINUX: dnf install -y gcc-gfortran
+          CIBW_BEFORE_ALL_MACOS: >
+            ARCH=$(uname -m) &&
+            curl -L https://github.com/isuruf/gcc/releases/download/gcc-11.3.0-2/gfortran-darwin-${ARCH}-native.tar.gz -o /tmp/gfortran.tar.gz &&
+            sudo tar -xzf /tmp/gfortran.tar.gz -C /opt &&
+            sudo mkdir -p /usr/local/bin /usr/local/lib &&
+            sudo ln -sf /opt/gfortran-darwin-${ARCH}-native/bin/gfortran /usr/local/bin/gfortran &&
+            sudo ln -sf /opt/gfortran-darwin-${ARCH}-native/lib/libgfortran.5.dylib /usr/local/lib/ &&
+            sudo ln -sf /opt/gfortran-darwin-${ARCH}-native/lib/libgfortran.dylib /usr/local/lib/ &&
+            sudo ln -sf /opt/gfortran-darwin-${ARCH}-native/lib/libquadmath.0.dylib /usr/local/lib/ &&
+            sudo ln -sf /opt/gfortran-darwin-${ARCH}-native/lib/libquadmath.dylib /usr/local/lib/ &&
+            sudo ln -sf /opt/gfortran-darwin-${ARCH}-native/lib/libgcc_s.1.dylib /usr/local/lib/ &&
+            sudo ln -sf /opt/gfortran-darwin-${ARCH}-native/lib/libgcc_s.1.1.dylib /usr/local/lib/
+          CIBW_ARCHS_MACOS: ${{ matrix.arch }}
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_deployment_target }}
+            SDKROOT=$(xcrun --show-sdk-path)
+            LIBRARY_PATH=$(xcrun --show-sdk-path)/usr/lib
+          CIBW_BEFORE_BUILD_WINDOWS: pip install delvewheel
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >
+            delvewheel repair --add-path C:\msys64\mingw64\bin -w {dest_dir} {wheel}
           CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_COMMAND: python -m pytest -s {project}/python/test
 
@@ -83,21 +98,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: '3.13'
+
+      - name: Install build
+        run: pip install build
 
       - name: Build sdist
-        run: |
-          pip install build
-          python -m build --sdist python/
+        run: python -m build --sdist
 
       - uses: actions/upload-artifact@v4
         with:
           name: sdist
-          path: python/dist/*.tar.gz
+          path: dist/*.tar.gz
 
   publish:
     needs: [build-wheels, build-sdist]
